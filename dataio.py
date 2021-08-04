@@ -105,7 +105,7 @@ def read_demographics_raw(spark, filename):
     return df
 
 
-def rad_immigration_raw(spark, filename):
+def read_immigration_raw(spark, filename):
     """Read US immigration (parquet) unprocessed dataset.
 
     Args:
