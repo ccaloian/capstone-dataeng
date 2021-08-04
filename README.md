@@ -15,8 +15,6 @@ The __US Demographics Data__ comes from the US Census Bureau's 2015 American Com
 
 The __I94 Immigration Data__ is from 2016 and is downloaded from [here](https://travel.trade.gov/research/reports/i94/historical/2016.html). This dataset contains information about non-US residents visiting US during 2015. It records information such as date of entry in US, country of citizenship, country of residence, destination (state), visa type, The original dataset is in `sas` format, one file per month. The full dataset contains 40,790,529 rows and 28 columns. For a full description of the data see [I94_SAS_README.txt](./I94_SAS_README.txt).
 
----
-
 ## 2. Explore and Assess the Data
 
 ### 2.1 Explore the Data 
@@ -37,8 +35,6 @@ For this dataset a lot more processing was required. The main steps are outlined
 * Replace SAS codes with corresponding information
 * Convert SAS time format to date type
 * Convert strings to date type and handle corner cases, _e.g._ year 9999
-
----
 
 ## 3. Define the Data Model
 
@@ -108,8 +104,6 @@ The steps necessary to pipeline the data into the chosen data model are as follo
 * Convert SAS time format to date type
 * Convert strings to date type and handle corner cases, _e.g._ year 9999
 
----
-
 ## 4 Run Pipelines to Model the Data 
 
 ### 4.1 Create the data model
@@ -123,8 +117,6 @@ Explain the data quality checks you'll perform to ensure the pipeline ran as exp
  
  ### 4.3 Data dictionary 
 Create a data dictionary for your data model. For each field, provide a brief description of what the data is and where it came from. You can include the data dictionary in the notebook or in a separate file.
-
----
 
 ## 5 Discussion
 
