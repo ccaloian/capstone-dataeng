@@ -103,10 +103,10 @@ The steps necessary to pipeline the data into the chosen data model are as follo
 * Read data from `sas` format 
 * Cast `sas` data to the correct type
 * Write data to `parquet` file partitioned by `i94mon` (month) to be easily accessible
+* Keep only columns of interest
 * Replace SAS codes with corresponding information
 * Convert SAS time format to date type
 * Convert strings to date type and handle corner cases, _e.g._ year 9999
-* Keep only columns of interest
 
 ---
 
@@ -126,11 +126,52 @@ Create a data dictionary for your data model. For each field, provide a brief de
 
 ---
 
-## 5 Complete Project Write Up
-* Clearly state the rationale for the choice of tools and technologies for the project.
-* Propose how often the data should be updated and why.
-* Write a description of how you would approach the problem differently under the following scenarios:
- * The data was increased by 100x.
- * The data populates a dashboard that must be updated on a daily basis by 7am every day.
- * The database needed to be accessed by 100+ people.
+## 5 Discussion
 
+### Tools and technologies
+
+For this project I chose to implement the data source as a data lake in AWS S3, and the ETL pipeline in Apache Spark. While the same pipeline can be implemented in a traditional data warehouse, this option is not as flexible. In general one needs to know in advance the kind of queries would be ran and based on that implement an operational data model. The architecture might be difficult to adapt to further changes in the requirements.
+
+Using Apache Spark and data lake architecutre we gain a lot of flexibility in the sense that we can work directly on the raw data and benefit from the schema-on-read capabilities. This way we can adapt quickly to requirement changes. One other advantage is that the pipeline can be easily shared with a larger audience due to the `spark.sql` engine that allows us to write queries using the DataFrame API or the SQL API.
+
+### Data updates and maitenance
+
+Given the current scenario, the demographics data could be updated every year, whereas the immigration data can be updated much more frequently, depending on the use case.
+
+As discussed above, Apache Spark makes it easy for us to adapt to changes in requirements and implement new transformations and queries.
+
+### Scenarios
+
+#### The data was increased by 100x
+
+This scenario is naturally handled by Apache Spark. We can scale the Spark cluster both horizontally and vertically to handle the new data requirements. This data volume increase is scalable also with the AWS S3 solution. 
+
+#### The data populates a dashboard that must be updated on a daily basis by 7am every day.
+
+In this case we would need a scheduling system that would run the pipeline every morning and push the results to a location accessible by the dashboard solution. Apache Airflow would be a good fit for this scenario. 
+
+#### The database needed to be accessed by 100+ people.
+
+Thius depends on the level of the data the users needs. If they need access to upstream data (raw dataset) to perform custom transformations and queries, Apache Spark could be set up on Yarn or Mesos clusters and everyone could access the resources. If the users need to consume already processed data for various summary statistics and visualizations, a main pipeline should be set up, ran on a schedule as discussed above, that outputs an analytical dataset for consumption in a database or some other resource available for everyone.
+
+## 6 How to run
+
+You need a Python 3 environment with the packages in `requirements.txt` installed.
+
+Additionally, Spark must be installed and the `SPARK_HOME` variable must point to the spark installation.
+
+The exploratory data analysis steps are in `eda.ipynb` that you can run using Jupyter notebook.
+
+The data is available in AWS S3 in `s3://udacity-dataeng-datasets`.
+
+Run the ETL pipeline as a Python script:
+
+```
+python3 main.py
+```
+
+## 7 References
+
+1. [US Census Bureau's 2015 American Community Survey](https://public.opendatasoft.com/explore/dataset/us-cities-demographics/export/?dataChart=eyJxdWVyaWVzIjpbeyJjb25maWciOnsiZGF0YXNldCI6InVzLWNpdGllcy1kZW1vZ3JhcGhpY3MiLCJvcHRpb25zIjp7fX0sImNoYXJ0cyI6W3siYWxpZ25Nb250aCI6dHJ1ZSwidHlwZSI6ImNvbHVtbiIsImZ1bmMiOiJBVkciLCJ5QXhpcyI6ImNvdW50Iiwic2NpZW50aWZpY0Rpc3BsYXkiOnRydWUsImNvbG9yIjoicmFuZ2UtY3VzdG9tIn1dLCJ4QXhpcyI6InN0YXRlIiwibWF4cG9pbnRzIjo1MCwic29ydCI6IiIsInNlcmllc0JyZWFrZG93biI6InJhY2UifV0sInRpbWVzY2FsZSI6IiIsImRpc3BsYXlMZWdlbmQiOnRydWUsImFsaWduTW9udGgiOnRydWV9)
+
+2. [I-94 Visitor Arrivals Program](https://www.trade.gov/i-94-arrivals-program)
