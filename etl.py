@@ -1,4 +1,3 @@
-from os import stat
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from pyspark.sql.types import DateType
@@ -16,6 +15,8 @@ class DemographicsPipeline:
                         .master("local[*]")
                         .appName("ETL")
                         .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0")
+                        .config("spark.driver.memory", "15g")
+                        .config("spark.sql.legacy.parquet.datetimeRebaseModeInWrite", "CORRECTED")
                         .getOrCreate()
         )
         self.filename = "./data/raw/demographics/us-cities-demographics.csv"
@@ -76,7 +77,42 @@ class DemographicsPipeline:
                 on=["City", "State"], how="outer"
         )
 
+        df = (
+            df
+            .withColumnRenamed("State", "state")
+            .withColumnRenamed("State Code", "state_code")
+            .groupBy("state", "state_code")
+            .agg(
+                F.count("City").alias("num_cities"),
+                F.sum("Total Population").alias("total_pop"),
+                F.sum("American Indian and Alaska Native").alias("amind_pop"),
+                F.sum("Asian").alias("asian_pop"),
+                F.sum("Black or African-American").alias("afram_pop"),
+                F.sum("Hispanic or Latino").alias("hispl_pop"),
+                F.sum("White").alias("white_pop")
+            )
+        )
+
         return df
+
+    def quality_checks(self, df):
+        """Run quality checks on the final dataset.
+
+        Args:
+            df (Spark.DataFrame): Final dataset.
+        """
+
+        assert df.count() > 0, "Quality Check Failed! Dataset is empty."
+        
+        assert df.where(F.col("state_code").isNull()).count() == 0 , \
+            "Quality Check Failed! 'state_code' contains NULLs."
+        
+        assert df.where(F.col("total_pop").isNull()).count() == 0 , \
+            "Quality Check Failed! 'total_pop' contains NULLs."
+        
+        assert df.where(F.col("total_pop") < 0).count() == 0 , \
+            "Quality Check Failed! 'total_pop' contains negative values."
+        
 
     def run(self):
         """Run demographics ETL pipeline.
@@ -89,6 +125,9 @@ class DemographicsPipeline:
                     self.get_population_total(dem_df),
                     self.get_population_race(dem_df)
         )
+
+        self.quality_checks(df)
+
         return df
 
 
@@ -99,6 +138,8 @@ class ImmigrationPipeline:
                         .master("local[*]")
                         .appName("ETL")
                         .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0")
+                        .config("spark.driver.memory", "15g")
+                        .config("spark.sql.legacy.parquet.datetimeRebaseModeInWrite", "CORRECTED")
                         .getOrCreate()
         )
         self.filename = "./data/raw/immigration/i94_data.parquet"
@@ -147,10 +188,10 @@ class ImmigrationPipeline:
         imm = dataio.read_immigration_raw(self.spark, self.filename)
 
         keep_cols = [
-            'cicid', 'i94yr', 'i94mon', 'i94cit', 'i94res', 'arrdate', 'i94addr', 'depdate', 
+            'cicid', 'i94yr', 'i94mon', 'i94cit', 'i94res', 'arrdate', 'i94addr', 'depdate', 'dtadfile',
             'i94bir', 'biryear', 'gender', 'count', 'dtaddto', 'i94visa', 'visatype', 'admnum'
         ]
-        imm = imm.select(*keep_cols).dropna()
+        imm = imm.select(*keep_cols).na.drop(how="any")
 
         return imm
 
@@ -168,24 +209,21 @@ class ImmigrationPipeline:
             f_content = f_content.replace('\t', '')
             
             i94cit_res = ImmigrationPipeline.sas_code_mapper(f_content, "i94cntyl")
-            i94port = ImmigrationPipeline.sas_code_mapper(f_content, "i94prtl")
             i94addr = ImmigrationPipeline.sas_code_mapper(f_content, "i94addrl")
             i94visa = {'1': 'Business', '2': 'Pleasure', '3': 'Student'}
 
         i94ctrs_map = F.create_map([F.lit(x) for x in chain(*i94cit_res.items())])
-        i94port_map = F.create_map([F.lit(x) for x in chain(*i94port.items())])
         i94addr_map = F.create_map([F.lit(x) for x in chain(*i94addr.items())])
         i94visa_map = F.create_map([F.lit(x) for x in chain(*i94visa.items())])
 
         imm_df = (imm_df
                     .withColumn("i94cit", i94ctrs_map[F.col("i94cit")])
                     .withColumn("i94res", i94ctrs_map[F.col("i94res")])
-                    .withColumn("i94port", i94port_map[F.col("i94port")])
                     .withColumn("state", i94addr_map[F.col("i94addr")])
                     .withColumn("i94visa", i94visa_map[F.col("i94visa")])
         )
 
-        return imm_df
+        return imm_df.na.drop(how="any")
 
     def convert_dates(self, imm_df):
         """Convert date columns to DateType.
@@ -225,7 +263,7 @@ class ImmigrationPipeline:
                     )
         )
 
-        return imm_df
+        return imm_df.na.drop(how="any")
 
     def transform(self, imm_df):
         """Apply all transformations to the immigration dataset.
@@ -241,6 +279,25 @@ class ImmigrationPipeline:
 
         return imm_df
 
+    def quality_checks(self, df):
+        """Run quality checks on the final dataset.
+
+        Args:
+            df (Spark.DataFrame): Final dataset.
+        """
+
+        assert df.count() > 0, "Quality Check Failed! Dataset is empty."
+        
+        assert df.where(F.col("i94cit").isNull()).count() == 0 , \
+            "Quality Check Failed! 'i94cit' contains NULLs."
+        
+        assert df.where(F.col("i94visa").isNull()).count() == 0 , \
+            "Quality Check Failed! 'i94visa' contains NULLs."
+        
+        assert df.where(F.col("state").isNull()).count() == 0 , \
+            "Quality Check Failed! 'state' contains NULLs."
+        
+
     def run(self):
         """Run immigration ETL pipeline.
 
@@ -248,4 +305,9 @@ class ImmigrationPipeline:
             Spark.DataFrame: Transformed immigration dataset.
         """
         imm_df = self.read_immigration()
-        return self.transform(imm_df)
+
+        df = self.transform(imm_df)
+        
+        self.quality_checks(df)
+
+        return df

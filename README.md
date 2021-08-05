@@ -150,16 +150,23 @@ Thius depends on the level of the data the users needs. If they need access to u
 
 You need a Python 3 environment with the packages in `requirements.txt` installed.
 
-Additionally, Spark must be installed and the `SPARK_HOME` variable must point to the spark installation.
+Additionally, `Spark` must be installed. 
 
 The exploratory data analysis steps are in `eda.ipynb` that you can run using Jupyter notebook.
 
-The data is available in AWS S3 in `s3://udacity-dataeng-datasets`.
+The data is available in AWS S3 in `s3://udacity-dataeng-datasets`. You will need `aws cli` installed. To get the data, from _this_ directory run the following command:
 
-Run the ETL pipeline as a Python script:
+```bash
+mkdir ./data
+aws s3 sync s3://udacity-dataeng-datasets ./data/
+```
+
+The notebook `queries.ipynb` contains some example queries that can be ran on the final dataset.
+
+To run the ETL pipeline and generate the analytical datasets run:
 
 ```
-python3 main.py
+python main.py
 ```
 
 ## 7 References
